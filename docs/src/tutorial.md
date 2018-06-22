@@ -81,8 +81,8 @@ By default, the finite difference method, `Calculus.jacobian()`, is used to appr
 ```Julia
 function j_m(t,p)
     J = Array{Float64}(length(t),length(p))
-    J[:,1] = exp.(p[2] .* t)       #df/dp[1]
-    J[:,2] = t .* p[1] .* J[:,1]   #df/dp[2]
+    J[:,1] = exp.(p[2] .* t)       #dm/dp[1]
+    J[:,2] = t .* p[1] .* J[:,1]   #dm/dp[2]
     J
 end
 
@@ -284,7 +284,11 @@ The algorithm in `LsqFit.jl` will then provide a least squares solution $\boldsy
     ```
 
     ```math
-    r_i({\boldsymbol{\gamma}}) = \sqrt{w_i} \cdot [m(\mathbf{x_i}, {\boldsymbol{\gamma}}) - Y_i]
+    r({\boldsymbol{\gamma}}) =  W^{\frac{1}{2}}\begin{bmatrix}
+                                m(\mathbf{x_1}, {\boldsymbol{\gamma}}) - Y_1\\
+                                \vdots\\
+                                m(\mathbf{x_n}, {\boldsymbol{\gamma}}) - Y_n\\
+                                \end{bmatrix}
     ```
 
     The solution will be the same as the least squares problem mentioned in the tutorial.
@@ -342,10 +346,10 @@ If we only know **the relative ratio of different variances**, i.e. $\epsilon \s
 \mathbf{Cov}(\boldsymbol{\gamma}^*) = \sigma^2[J'WJ]^{-1}
 ```
 
-where $\sigma^2$ is estimated. In this case, if we set $W = I$, the result will be the same as the unweighted version. However, `curve_fit()` currently **does not support** this implementation. `curve_fit()` assumes the weight as the inverse of **the error covariance matrix** rather than **the ratio of error covariance matrix**, i.e. the covariance of the estimated parameter is calculated as `covar = inv(J'*fit.wt*J)`.
+where $\sigma^2$ is estimated. In this case, if we set $W = I$, the result will be the same as the unweighted version. However, `curve_fit()` currently **does not support** this implementation. `curve_fit()` assumes the weight as the inverse of **the error covariance matrix** rather than **the relative ratio of error covariance matrix**, i.e. the covariance of the estimated parameter is calculated as `covar = inv(J'*fit.wt*J)`.
 
 !!! note
-    Passing vector of ones as the weight vector will cause mistakes in covariance estimation.
+    Passing vector of ones, `[1., 1., 1.]`, as the weight vector will cause mistakes in covariance estimation.
 
 Pass the vector of `1 ./ var(ε)` or the matrix `inv(covar(ε))` as the weight parameter (`wt`) to the function `curve_fit()`:
 
@@ -370,7 +374,7 @@ Set the weight matrix as the inverse of the error covariance matrix (the optimal
 Pass the matrix `inv(covar(ε))` as the weight parameter (`wt`) to the function `curve_fit()`:
 
 ```Julia
-julia> wt = 1 ./ yvar
+julia> wt = inv(covar_ε)
 julia> fit = curve_fit(m, tdata, ydata, wt, p0)
 julia> cov = estimate_covar(fit)
 ```
@@ -379,14 +383,14 @@ julia> cov = estimate_covar(fit)
 In most cases, the variances of errors are unknown. To perform Weighted Least Square, we need estimate the variances of errors first, which is the squared residual of $i$th sample:
 
 ```math
-\widehat{\mathbf{Var}(\epsilon_i)} = \widehat{\mathbf{E}(\epsilon_i \epsilon_i)} = r_i(\boldsymbol{\gamma}^*)
+\widehat{\mathbf{Var}(\epsilon_i)} = \widehat{\mathbf{E}(\epsilon_i^2)} = r_i(\boldsymbol{\gamma}^*)^2
 ```
 
-Unweighted fitting (OLS) will return the residuals we need, since the estimator of OLS is unbiased. Then pass the reciprocal of the residuals as the estimated optimal weight to perform Weighted Least Squares:
+Unweighted fitting (OLS) will return the residuals we need, since the estimator of OLS is unbiased. Then pass the reciprocal of the squared residuals as the estimated optimal weight to perform Weighted Least Squares:
 
 ```Julia
-julia> fit_OLS = curve_fit(m, tdata, ydata, p0)
-julia> wt = 1 ./ fit_OLS.resid
+julia> fit = curve_fit(m, tdata, ydata, p0)
+julia> wt = fit.resid.^-2
 julia> fit_WLS = curve_fit(m, tdata, ydata, wt, p0)
 julia> cov = estimate_covar(fit_WLS)
 ```
