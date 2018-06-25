@@ -15,5 +15,6 @@ module LsqFit
 
     include("levenberg_marquardt.jl")
     include("curve_fit.jl")
+    include("printing.jl")
 
 end
