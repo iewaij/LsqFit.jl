@@ -1,21 +1,93 @@
+"""
+    Base.show(io::IO, fit::LsqFitResult)
+
+Show the output of `LsqFitResult`.
+"""
 function Base.show(io::IO, fit::LsqFitResult)
-    print(io, """Results of Least Squares Algorithm:
+    print(io, """Results of Least Squares Fitting:
+    * Algorithm: $(fit.algorithm)
     * Convergence: $(fit.converged)
+    * Iterations: $(fit.iterations)
     * Estimated Parameters: $(fit.param)
+    * Sample Size: $(fit.n)
     * Degrees of Freedom: $(fit.dof)
     * Weights: $(fit.wt)
-    * Residual Sum of Squars: $(sum(fit.resid))
+    * Residual Sum of Squares: $(rss(fit))
+    * σ²: $(estimate_sigma2(fit))
+    * R²: $(r2(fit))
     """)
     return
 end
 
-function r2(fit::LsqFitResult)
+"""
+    rss(fit::LsqFitResult)
+
+Calulate the residual sum of squares (RSS), also known as the sum of squared residuals (SSR) or the sum of squared errors (SSE).
+
+```math
+RSS =
+```
+"""
+function rss(fit::LsqFitResult)
+    rss = sum(abs2, fit.resid)
 end
 
+function tss(fit::LsqFitResult)
+    tss = sum(abs2, ydata .- mean(ydata))
+end
+
+"""
+    r2(fit::LsqFitResult)
+
+Calulate the explained variance, also known as R².
+
+```math
+R^2 = \frac{\mathbf{Var}[m(\mathbf{X}, \boldsymbol{\gamma}^*)]}{\mathbf{Var}(Y)} = 1 - \frac{RSS}{TSS}
+```
+"""
+function r2(fit::LsqFitResult)
+    r2 = 1 - rss(fit)/tss(fit)
+end
+
+"""
+    adj_r2(fit::LsqFitResult)
+"""
 function adj_r2(fit::LsqFitResult)
 end
 
 function mse(fit::LsqFitResult)
+    mse = rss(fit) / fit.n
+end
+
+function rmse(fit::LsqFitResult)
+    rmse = sqrt(mse(fit))
+end
+
+"""
+    estimate_sigma2(fit::LsqFitResult)
+
+Calulate the unbiased estimate of error term variance σ², assuming ϵ ~ N(0, σ²I).
+
+```math
+\widehat{\sigma^2} = \frac{RSS}{n-p}
+```
+"""
+function estimate_sigma2(fit::LsqFitResult)
+    sigma2 = rss(fit) / fit.dof
+end
+
+"""
+    estimate_sigma(fit::LsqFitResult)
+
+Calulate the unbiased estimate of error term standard deviation σ², assuming ϵ ~ N(0, σ²I).
+
+```math
+\widehat{\sigma} = \sqrt{\frac{RSS}{n-p}}
+```
+"""
+function estimate_sigma(fit::LsqFitResult)
+    sigma2 =  estimate_sigma2(fit)
+    sigma = sqrt(sigma2)
 end
 
 function estimate_covar(fit::LsqFitResult)
@@ -23,15 +95,11 @@ function estimate_covar(fit::LsqFitResult)
     J = fit.jacobian
 
     if isempty(fit.wt)
-        r = fit.resid
-
-        # mean square error is: standard sum square error / degrees of freedom
-        mse = sum(abs2, r) / fit.dof
-
+        sigma2 = estimate_sigma2(fit)
         # compute the covariance matrix from the QR decomposition
         Q,R = qr(J)
         Rinv = inv(R)
-        covar = Rinv*Rinv'*mse
+        covar = Rinv*Rinv'*sigma2
     elseif length(size(fit.wt)) == 1
         covar = inv(J'*Diagonal(fit.wt)*J)
     else
