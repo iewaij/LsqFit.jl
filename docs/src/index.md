@@ -12,7 +12,7 @@ The basic functionality was originaly in [Optim.jl](https://github.com/JuliaNLSo
 
 # Features
 * Non-linear Least Squares Regression using Levenberg-Marquardt algorithm.
-* Assign weights to squared residuals (Weighted and General Least Squares).
+* Perform Weighted and General Least Squares.
 * Covariance inference about regression parameters.
 
 ## Installation

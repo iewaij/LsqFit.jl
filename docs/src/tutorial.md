@@ -28,14 +28,24 @@ and the model becomes:
 Y_i = \gamma_1 \exp(\gamma_2 t_i) + \epsilon_i
 ```
 
-To fit data using `LsqFit.jl`, pass the defined model function (`m`), data (`tdata` and `ydata`) and the initial parameter value (`p0`) to `curve_fit()`. For now, `LsqFit.jl` only supports the Levenberg Marquardt algorithm.
+To fit data using `LsqFit.jl`, pass the defined model function (`m`), data (`tdata` and `ydata`) and the initial parameter value (`p_init`) to `curve_fit()`. For now, `LsqFit.jl` only supports the Levenberg Marquardt algorithm.
 
 ```julia
 julia> # t: array of independent variables
 julia> # p: array of model parameters
 julia> m(t, p) = p[1] * exp.(p[2] * t)
-julia> p0 = [0.5, 0.5]
-julia> fit = curve_fit(m, tdata, ydata, p0)
+julia> p_init = [0.5, 0.5]
+julia> fit = curve_fit(m, tdata, ydata, p_init)
+```
+
+[`@.`](https://docs.julialang.org/en/stable/stdlib/arrays/#Base.Broadcast.@__dot__) macro can also be used to perform [element-by-element calculation](https://docs.julialang.org/en/stable/manual/functions/#man-vectorized-1).
+
+```julia
+julia> # t: array of independent variables
+julia> # p: array of model parameters
+julia> @. m(t, p) = p[1] * exp(p[2] * t)
+julia> p_init = [0.5, 0.5]
+julia> fit = curve_fit(m, tdata, ydata, p_init)
 ```
 
 It will return a composite type `LsqFitResult`, with some interesting values:
@@ -44,6 +54,9 @@ It will return a composite type `LsqFitResult`, with some interesting values:
 *	`fit.param`: best fit parameters
 *	`fit.resid`: vector of residuals
 *	`fit.jacobian`: estimated Jacobian at the solution
+
+
+
 
 ## Jacobian Calculation
 
@@ -81,8 +94,8 @@ By default, the finite difference method, `Calculus.jacobian()`, is used to appr
 ```Julia
 function j_m(t,p)
     J = Array{Float64}(length(t),length(p))
-    J[:,1] = exp.(p[2] .* t)       #dm/dp[1]
-    J[:,2] = t .* p[1] .* J[:,1]   #dm/dp[2]
+    @. J[:,1] = exp(p[2] * t)       #dm/dp[1]
+    @. J[:,2] = t * p[1] * J[:,1]   #dm/dp[2]
     J
 end
 
@@ -224,17 +237,53 @@ julia> confidence_intervals = confidence_interval(fit, 0.1)
 
 ## Weighted Least Squares
 
-`curve_fit()` also accepts weight parameter (`wt`) to perform Weighted Least Squares and General Least Squares, where the parameter $\boldsymbol{\gamma}^*$ minimizes the weighted residual sum of squares.
+`curve_fit()` also accepts sigma parameter (`sigma`) to perform Weighted Least Squares and General Least Squares, where the parameter $\boldsymbol{\gamma}^*$ minimizes the transformed (weighted) residual sum of squares.
 
-Weight parameter (`wt`) is an array or a matrix of weights for each sample. To perform Weighted Least Squares, pass the weight array `[w_1, w_2, ..., w_n]` or the weight matrix `W`:
+Assume the errors in each sample are independent, normal distributed with zero mean and **different** variances (heteroskedastic error), i.e. $\epsilon \sim N(0, \Sigma)$, where:
 
 ```math
-\mathbf{W} = \begin{bmatrix}
-    w_1    & 0      & \cdots & 0\\
-    0      & w_2    & \cdots & 0\\
-    \vdots & \vdots & \ddots & \vdots\\
-    0      & 0    & \cdots & w_n\\
-    \end{bmatrix}
+\Sigma = \begin{bmatrix}
+         \sigma_1^2    & 0      & \cdots & 0\\
+         0      & \sigma_2^2    & \cdots & 0\\
+         \vdots & \vdots & \ddots & \vdots\\
+         0      & 0    & \cdots & \sigma_n^2\\
+         \end{bmatrix}
+```
+
+To perform Weighted Least Squares, pass the array of **standard deviations of errors**, `[σ_1, σ_2, ..., σ_n]`, to `curve_fit()`.
+
+```Julia
+julia> fit = curve_fit(m, tdata, ydata, εstdd, p0)
+julia> cov = estimate_covar(fit)
+```
+
+!!! warn
+    The `weight` argument has been deprecated. Please make sure that you're passing the vector of the standard deviations of errors, which could be estimated by `abs(fit.resid)`.
+
+!!! note
+    `sigma` must be a vector. If `sigma` is a matrix, General Least Squares will be performed.
+
+The weight will be calculated as the reciprocal of the standard deviation of errors:
+
+```math
+w_i = \frac{1}{\sigma_i^2}
+```
+
+in matrix form:
+
+```math
+\mathbf{W} =  \begin{bmatrix}
+              w_1    & 0      & \cdots & 0\\
+              0      & w_2    & \cdots & 0\\
+              \vdots & \vdots & \ddots & \vdots\\
+              0      & 0    & \cdots & w_n\\
+              \end{bmatrix}
+           =  \begin{bmatrix}
+              1/\sigma_1^2    & 0      & \cdots & 0\\
+              0      & 1/\sigma_2^2    & \cdots & 0\\
+              \vdots & \vdots & \ddots & \vdots\\
+              0      & 0    & \cdots & 1/\sigma_n^2\\
+              \end{bmatrix}
 ```
 
 The weighted least squares problem becomes:
@@ -250,24 +299,95 @@ in matrix form:
 ```
 
 where $r({\boldsymbol{\gamma}})=\begin{bmatrix}
-                          r_1({\boldsymbol{\gamma}}) \\
-                          r_2({\boldsymbol{\gamma}}) \\
-                          \vdots\\
+                          r_1({\boldsymbol{\gamma}}),
+                          r_2({\boldsymbol{\gamma}}),
+                          \dots,
                           r_n({\boldsymbol{\gamma}})
-                          \end{bmatrix}$
+                          \end{bmatrix}'$
 is a residual vector function with entries:
 
 ```math
 r_i({\boldsymbol{\gamma}}) = m(\mathbf{x_i}, {\boldsymbol{\gamma}}) - Y_i
 ```
 
-The algorithm in `LsqFit.jl` will then provide a least squares solution $\boldsymbol{\gamma}^*$.
+The algorithm in `LsqFit.jl` will then provide a least squares solution $\boldsymbol{\gamma}^*$. Set $r({\boldsymbol{\gamma^*}}) = r$ and $J(\boldsymbol{\gamma^*}) = J$, the linear approximation of the weighted least squares problem is then:
+
+```math
+\underset{\boldsymbol{\gamma}}{\mathrm{min}} \quad s(\boldsymbol{\gamma}) = s(\boldsymbol{\gamma}^* + \boldsymbol{h}) \approx [J\boldsymbol{h}+r]'W[J\boldsymbol{h}+r]
+```
+
+The analytical solution to the linear approximation is:
+
+```math
+\hat{\boldsymbol{h}}=\hat{\boldsymbol{\gamma}}-\boldsymbol{\gamma}^*\approx-[J'WJ]^{-1}J'Wr
+```
+
+Since the weight matrix is the inverse of the variance, i.e. $W = \Sigma^{-1}$, the covariance matrix is now:
+
+```math
+{Cov}(\boldsymbol{\gamma}^*) \approx  [J'WJ]^{-1}J'W \Sigma W'J[J'W'J]^{-1} = [J'WJ]^{-1}
+```
+
+In most cases, the variances of errors are unknown. To perform Weighted Least Square, we need estimate the standard deviations of errors first, which is the absolute residual of the $i$th sample:
+
+```math
+\widehat{\mathbf{Var}(\epsilon_i)} = \widehat{\mathbf{E}(\epsilon_i^2)} = r_i(\boldsymbol{\gamma}^*)^2
+```
+
+```math
+\widehat{\sigma_i} = \sqrt{\widehat{\mathbf{Var}(\epsilon_i)}} = |r_i(\boldsymbol{\gamma}^*)|
+```
+
+Unweighted fitting (OLS) will return the residuals we need, though the estimator is little bit biased. Then pass the the absolute residual to perform Weighted Least Squares:
+
+```Julia
+julia> fit = curve_fit(m, tdata, ydata, p0)
+julia> fit_WLS = curve_fit(m, tdata, ydata, abs.(fit.resid), p0)
+julia> cov = estimate_covar(fit_WLS)
+```
+
+If we only know **the relative ratio of standard deviations**, i.e. $\epsilon \sim N(0, k\Sigma)$, the covariance matrix of the estimated parameter will be:
+
+```math
+\mathbf{Cov}(\boldsymbol{\gamma}^*) = k[J'WJ]^{-1}
+```
+
+where $k$ is estimated as:
+
+```math
+\hat{k}=\frac{RSS}{n-p}
+```
+
+In this case, if we set $W = I$, the result will be the same as the unweighted version. However, `curve_fit()` currently **does not support** this implementation, i.e. the covariance of the estimated parameter is calculated as `covar = inv(J'*fit.wt*J)`. A workaround is to multiply the estimated covariance by `k`:
+
+```Julia
+julia> fit = curve_fit(m, tdata, ydata, εstdd_ratio, p0)
+julia> k = sum(fit.resid) / fit.dof
+julia> cov = k * estimate_covar(fit)
+```
+
+## General Least Squares
+Assume the errors in each sample are **correlated**, normal distributed with zero mean and **different** variances (heteroskedastic and autocorrelated error), i.e. $\epsilon \sim N(0, \Sigma)$. Pass the covariance matrix of errors (`εcov`) to the function `curve_fit()` to perform General Least Squares:
+
+```Julia
+julia> fit = curve_fit(m, tdata, ydata, εcov, p0)
+julia> cov = estimate_covar(fit)
+```
+
+!!! warn
+    The `weight` argument has been deprecated. Please make sure that you're passing the covariance matrix of errors.
+
+The transform matrix will be calculated as the inverse of the error covariance matrix, i.e. $W = \Sigma^{-1}$, we will get the parameter covariance matrix:
+
+```math
+\mathbf{Cov}(\boldsymbol{\gamma}^*) \approx  [J'WJ]^{-1}J'W \Sigma W'J[J'W'J]^{-1} = [J'WJ]^{-1}
+```
 
 !!! note
     In `LsqFit.jl`, the residual function passed to `levenberg_marquardt()` is in different format, if the weight is a vector:
 
     ```julia
-    r(p) = sqrt.(wt) .* ( model(xpts, p) - ydata )
+    r(p) = sqrt_wt .* ( model(xpts, p) - ydata )
     lmfit(r, g, p0, wt; kwargs...)
     ```
 
@@ -275,7 +395,7 @@ The algorithm in `LsqFit.jl` will then provide a least squares solution $\boldsy
     r_i({\boldsymbol{\gamma}}) = \sqrt{w_i} \cdot [m(\mathbf{x_i}, {\boldsymbol{\gamma}}) - Y_i]
     ```
 
-    Cholesky decomposition, which is effectively a sqrt of a matrix, will be performed if the weight is a matrix:
+    Cholesky decomposition, which is effectively a square root of matrix, will be performed if the `sigma` is a matrix:
 
     ```julia
     u = chol(wt)
@@ -292,108 +412,6 @@ The algorithm in `LsqFit.jl` will then provide a least squares solution $\boldsy
     ```
 
     The solution will be the same as the least squares problem mentioned in the tutorial.
-
-Set $r({\boldsymbol{\gamma^*}}) = r$ and $J(\boldsymbol{\gamma^*}) = J$, the linear approximation of the weighted least squares problem is then:
-
-```math
-\underset{\boldsymbol{\gamma}}{\mathrm{min}} \quad s(\boldsymbol{\gamma}) = s(\boldsymbol{\gamma}^* + \boldsymbol{h}) \approx [J\boldsymbol{h}+r]'W[J\boldsymbol{h}+r]
-```
-
-The analytical solution to the linear approximation is:
-
-```math
-\hat{\boldsymbol{h}}=\hat{\boldsymbol{\gamma}}-\boldsymbol{\gamma}^*\approx-[J'WJ]^{-1}J'Wr
-```
-
-Assume the errors in each sample are independent, normal distributed with zero mean and **different** variances (heteroskedastic error), i.e. $\epsilon \sim N(0, \Sigma)$, where:
-
-```math
-\Sigma = \begin{bmatrix}
-         \sigma_1^2    & 0      & \cdots & 0\\
-         0      & \sigma_2^2    & \cdots & 0\\
-         \vdots & \vdots & \ddots & \vdots\\
-         0      & 0    & \cdots & \sigma_n^2\\
-         \end{bmatrix}
-```
-
-We know the error variance and we set the weight as the inverse of the variance (the optimal weight), i.e. $W = \Sigma^{-1}$:
-
-```math
-\mathbf{W} =  \begin{bmatrix}
-              w_1    & 0      & \cdots & 0\\
-              0      & w_2    & \cdots & 0\\
-              \vdots & \vdots & \ddots & \vdots\\
-              0      & 0    & \cdots & w_n\\
-              \end{bmatrix}
-           =  \begin{bmatrix}
-               \frac{1}{\sigma_1^2}    & 0      & \cdots & 0\\
-               0      & \frac{1}{\sigma_2^2}    & \cdots & 0\\
-               \vdots & \vdots & \ddots & \vdots\\
-               0      & 0    & \cdots & \frac{1}{\sigma_n^2}\\
-               \end{bmatrix}
-```
-
-The covariance matrix is now:
-
-```math
-{Cov}(\boldsymbol{\gamma}^*) \approx  [J'WJ]^{-1}J'W \Sigma W'J[J'W'J]^{-1} = [J'WJ]^{-1}
-```
-
-
-If we only know **the relative ratio of different variances**, i.e. $\epsilon \sim N(0, \sigma^2W^{-1})$, the covariance matrix will be:
-
-```math
-\mathbf{Cov}(\boldsymbol{\gamma}^*) = \sigma^2[J'WJ]^{-1}
-```
-
-where $\sigma^2$ is estimated. In this case, if we set $W = I$, the result will be the same as the unweighted version. However, `curve_fit()` currently **does not support** this implementation. `curve_fit()` assumes the weight as the inverse of **the error covariance matrix** rather than **the relative ratio of error covariance matrix**, i.e. the covariance of the estimated parameter is calculated as `covar = inv(J'*fit.wt*J)`.
-
-!!! note
-    Passing vector of ones, `[1., 1., 1.]`, as the weight vector will cause mistakes in covariance estimation.
-
-Pass the vector of `1 ./ var(ε)` or the matrix `inv(covar(ε))` as the weight parameter (`wt`) to the function `curve_fit()`:
-
-```Julia
-julia> wt = inv(cov_ε)
-julia> fit = curve_fit(m, tdata, ydata, wt, p0)
-julia> cov = estimate_covar(fit)
-```
-
-!!! note
-    If the weight matrix is not a diagonal matrix, General Least Squares will be performed.
-
-## General Least Squares
-Assume the errors in each sample are **correlated**, normal distributed with zero mean and **different** variances (heteroskedastic and autocorrelated error), i.e. $\epsilon \sim N(0, \Sigma)$.
-
-Set the weight matrix as the inverse of the error covariance matrix (the optimal weight), i.e. $W = \Sigma^{-1}$, we will get the parameter covariance matrix:
-
-```math
-\mathbf{Cov}(\boldsymbol{\gamma}^*) \approx  [J'WJ]^{-1}J'W \Sigma W'J[J'W'J]^{-1} = [J'WJ]^{-1}
-```
-
-Pass the matrix `inv(covar(ε))` as the weight parameter (`wt`) to the function `curve_fit()`:
-
-```Julia
-julia> wt = inv(covar_ε)
-julia> fit = curve_fit(m, tdata, ydata, wt, p0)
-julia> cov = estimate_covar(fit)
-```
-
-## Estimate the Optimal Weight
-In most cases, the variances of errors are unknown. To perform Weighted Least Square, we need estimate the variances of errors first, which is the squared residual of $i$th sample:
-
-```math
-\widehat{\mathbf{Var}(\epsilon_i)} = \widehat{\mathbf{E}(\epsilon_i^2)} = r_i(\boldsymbol{\gamma}^*)^2
-```
-
-Unweighted fitting (OLS) will return the residuals we need, since the estimator of OLS is unbiased. Then pass the reciprocal of the squared residuals as the estimated optimal weight to perform Weighted Least Squares:
-
-```Julia
-julia> fit = curve_fit(m, tdata, ydata, p0)
-julia> wt = fit.resid.^-2
-julia> fit_WLS = curve_fit(m, tdata, ydata, wt, p0)
-julia> cov = estimate_covar(fit_WLS)
-```
 
 ## References
 Hansen, P. C., Pereyra, V. and Scherer, G. (2013) Least squares data fitting with applications. Baltimore, Md: Johns Hopkins University Press, p. 147-155.
