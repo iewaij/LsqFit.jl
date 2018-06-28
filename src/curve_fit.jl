@@ -1,22 +1,27 @@
 immutable LsqFitResult{T,N}
+    n::Int
     dof::Int
     param::Vector{T}
+    ydata::Vector{T}
     resid::Vector{T}
     jacobian::Matrix{T}
-    converged::Bool
     wt::Array{T,N}
+    algorithm::String
+    iterations::Int
+    converged::Bool
 end
 
 # provide a method for those who have their own Jacobian function
-function lmfit(f::Function, g::Function, p0, wt; kwargs...)
+function lmfit(ydata, f::Function, g::Function, p0, wt; kwargs...)
     results = levenberg_marquardt(f, g, p0; kwargs...)
     p = minimizer(results)
     resid = f(p)
-    dof = length(resid) - length(p)
-    return LsqFitResult(dof, p, f(p), g(p), converged(results), wt)
+    n = length(resid)
+    dof = n - length(p)
+    return LsqFitResult(n, dof, p, ydata, f(p), g(p), wt, summary(results), iterations(results), converged(results))
 end
 
-function lmfit(f::Function, p0, wt; kwargs...)
+function lmfit(ydata, f::Function, p0, wt; kwargs...)
     # this is a convenience function for the curve_fit() methods
     # which assume f(p) is the cost functionj i.e. the residual of a
     # model where
@@ -34,7 +39,7 @@ function lmfit(f::Function, p0, wt; kwargs...)
 
     # construct Jacobian function, which uses finite difference method
     g = Calculus.jacobian(f)
-    lmfit(f, g, p0, wt; kwargs...)
+    lmfit(ydata, f, g, p0, wt; kwargs...)
 end
 
 
@@ -71,7 +76,7 @@ function curve_fit(model::Function, xpts::AbstractArray, ydata::AbstractArray, p
     # construct the cost function
     f(p) = model(xpts, p) - ydata
     T = eltype(ydata)
-    lmfit(f,p0,T[]; kwargs...)
+    lmfit(ydata, f,p0,T[]; kwargs...)
 end
 
 function curve_fit(model::Function, jacobian_model::Function,
@@ -79,21 +84,21 @@ function curve_fit(model::Function, jacobian_model::Function,
     f(p) = model(xpts, p) - ydata
     g(p) = jacobian_model(xpts, p)
     T = eltype(ydata)
-    lmfit(f, g, p0, T[]; kwargs...)
+    lmfit(ydata, f, g, p0, T[]; kwargs...)
 end
 
 function curve_fit(model::Function, xpts::AbstractArray, ydata::AbstractArray, wt::Vector, p0; kwargs...)
     # construct a weighted cost function, with a vector weight for each ydata
     # for example, this might be wt = 1/sigma where sigma is some error term
     f(p) = wt .* ( model(xpts, p) - ydata )
-    lmfit(f,p0,wt; kwargs...)
+    lmfit(ydata, f,p0,wt; kwargs...)
 end
 
 function curve_fit(model::Function, jacobian_model::Function,
             xpts::AbstractArray, ydata::AbstractArray, wt::Vector, p0; kwargs...)
     f(p) = wt .* ( model(xpts, p) - ydata )
     g(p) = wt .* ( jacobian_model(xpts, p) )
-    lmfit(f, g, p0, wt; kwargs...)
+    lmfit(ydata, f, g, p0, wt; kwargs...)
 end
 
 function curve_fit(model::Function, xpts::AbstractArray, ydata::AbstractArray, wt::Matrix, p0; kwargs...)
@@ -107,7 +112,7 @@ function curve_fit(model::Function, xpts::AbstractArray, ydata::AbstractArray, w
     u = chol(wt)
 
     f(p) = u * ( model(xpts, p) - ydata )
-    lmfit(f,p0,wt; kwargs...)
+    lmfit(ydata, f,p0,wt; kwargs...)
 end
 
 function curve_fit(model::Function, jacobian_model::Function,
@@ -116,5 +121,5 @@ function curve_fit(model::Function, jacobian_model::Function,
 
     f(p) = u * ( model(xpts, p) - ydata )
     g(p) = u * ( jacobian_model(xpts, p) )
-    lmfit(f, g, p0, wt; kwargs...)
+    lmfit(ydata, f, g, p0, wt; kwargs...)
 end

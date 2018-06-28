@@ -1,37 +1,148 @@
+"""
+    Base.show(io, fit)
+
+Show the output of `LsqFitResult`.
+"""
 function Base.show(io::IO, fit::LsqFitResult)
-    print(io, """Results of Least Squares Algorithm:
-    * Convergence: $(fit.converged)
+    print(
+    """Results of Least Squares Fitting:
+    * Algorithm: $(fit.algorithm)
+    * Iterations: $(fit.iterations)
+    * Converged: $(fit.converged)
     * Estimated Parameters: $(fit.param)
+    * Sample Size: $(fit.n)
     * Degrees of Freedom: $(fit.dof)
     * Weights: $(fit.wt)
-    * Residual Sum of Squars: $(sum(fit.resid))
+    * Sum of Squared Errors: $(sse(fit))
+    * Mean Squared Errors: $(mse(fit))
+    * R²: $(r2(fit))
+    * Adjusted R²: $(adjr2(fit))
     """)
-    return
+    println("\nVariance Inferences:")
+    nc = 4
+    nr = length(fit.param)
+    outrows = Matrix{String}(nr+1, nc)
+    outrows[1, :] = ["k", "value", "std error", "95% conf int"]
+
+    for i in 1:nr
+        outrows[i+1, :] = ["$i", "$(round(fit.param[i], 4))", "$(round(standard_error(fit)[i], 4))",
+                           "$(round.(confidence_interval(fit)[i], 2))"]
+    end
+
+    colwidths = length.(outrows)
+    max_colwidths = [maximum(view(colwidths, :, i)) for i in 1:nc]
+
+    for r in 1:nr+1
+        for c in 1:nc
+            cur_cell = outrows[r, c]
+            cur_cell_len = length(cur_cell)
+
+            padding = " "^(max_colwidths[c]-cur_cell_len)
+            if c > 1
+                padding = " "*padding
+            end
+
+            print(io, padding)
+            print(io, cur_cell)
+        end
+        print(io, "\n")
+    end
 end
 
+"""
+    sse(fit)
+
+Return the residual sum of squares (RSS), also known as the sum of squared residuals (SSR) or the sum of squared errors (SSE).
+
+```math
+SSE = \sum_{i=1}^{n} [Y_i - m(\mathbf{x_i}, \boldsymbol{\gamma}^*)]^2
+```
+
+for the transformed version:
+
+```math
+SSE = r(\mathbf{X}, \boldsymbol{\gamma}^*)'Wr(\mathbf{X}, \boldsymbol{\gamma}^*)
+```
+"""
+function sse(fit::LsqFitResult)
+    sse = sum(abs2, fit.resid)
+end
+
+"""
+    sst(fit)
+
+Return the total sum of squares (SST).
+
+```math
+SST = \sum_{i=1}^{n} [Y_i - \bar{Y_i}]^2
+```
+"""
+function sst(fit::LsqFitResult)
+    sst = sum(abs2, fit.ydata .- mean(fit.ydata))
+end
+
+"""
+    r2(fit)
+
+Return the explained variance, also known as R².
+
+```math
+R^2 = \frac{\mathbf{Var}[m(\mathbf{X}, \boldsymbol{\gamma}^*)]}{\mathbf{Var}(Y)} = 1 - \frac{RSS}{TSS}
+```
+"""
 function r2(fit::LsqFitResult)
+    r2 = 1 - sse(fit)/sst(fit)
 end
 
-function adj_r2(fit::LsqFitResult)
+"""
+    adjr2(fit)
+
+Return the adjusted R².
+
+```math
+R_{adj}^2 = 1 - (1-R^2)\frac{n-1}{n-p-1}
+```
+"""
+function adjr2(fit::LsqFitResult)
+    adjr2 = 1 - (1 - r2(fit))*(fit.n-1)/(fit.dof-1)
 end
 
+"""
+    mse(fit)
+
+Return the unbiased estimate of error term variance σ² assuming ϵ ~ N(0, σ²I), also known as MSE.
+
+```math
+MSE = \widehat{\sigma^2} = \frac{RSS}{n-p}
+```
+"""
 function mse(fit::LsqFitResult)
+    mse = sse(fit) / fit.dof
 end
 
+"""
+    rmse(fit)
+
+Return the square root of MSE.
+"""
+function rmse(fit::LsqFitResult)
+    rmse = sqrt(mse(fit))
+end
+
+"""
+    estimate_covar(fit)
+
+Return the covariance matrix of parameters.
+"""
 function estimate_covar(fit::LsqFitResult)
-    # computes covariance matrix of fit parameters
     J = fit.jacobian
 
     if isempty(fit.wt)
-        r = fit.resid
-
-        # mean square error is: standard sum square error / degrees of freedom
-        mse = sum(abs2, r) / fit.dof
-
+        sigma2 = mse(fit)
         # compute the covariance matrix from the QR decomposition
         Q,R = qr(J)
         Rinv = inv(R)
-        covar = Rinv*Rinv'*mse
+        covar = Rinv*Rinv'*sigma2
     elseif length(size(fit.wt)) == 1
         covar = inv(J'*Diagonal(fit.wt)*J)
     else
@@ -41,6 +152,13 @@ function estimate_covar(fit::LsqFitResult)
     return covar
 end
 
+"""
+    standard_error(fit; rtol=NaN, atol=0)
+
+Return the standard error of parameters.
+
+# Arguments
+"""
 function standard_error(fit::LsqFitResult; rtol::Real=NaN, atol::Real=0)
     # computes standard error of estimates from
     #   fit   : a LsqFitResult from a curve_fit()
@@ -81,6 +199,3 @@ function confidence_interval(fit::LsqFitResult, alpha=0.05; rtol::Real=NaN, atol
 end
 
 @deprecate estimate_errors(fit::LsqFitResult, confidence=0.95; rtol::Real=NaN, atol::Real=0) margin_error(fit, 1-confidence; rtol=rtol, atol=atol)
-
-function overview(fit::LsqFitResult)
-end

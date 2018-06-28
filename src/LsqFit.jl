@@ -1,6 +1,10 @@
 module LsqFit
 
-    export curve_fit,
+    export mse,
+           sse,
+           r2,
+           adjr2,
+           curve_fit,
            standard_error,
            margin_error,
            confidence_interval,
@@ -15,6 +19,5 @@ module LsqFit
 
     include("levenberg_marquardt.jl")
     include("curve_fit.jl")
-    include("printing.jl")
-
+    include("curve_fit_tools.jl")
 end
