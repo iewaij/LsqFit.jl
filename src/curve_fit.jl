@@ -15,10 +15,16 @@ end
 function lmfit(ydata, f::Function, g::Function, p0, wt; kwargs...)
     results = levenberg_marquardt(f, g, p0; kwargs...)
     p = minimizer(results)
+<<<<<<< HEAD
     resid = f(p)
     n = length(resid)
     dof = n - length(p)
     return LsqFitResult(n, dof, p, ydata, f(p), g(p), wt, summary(results), iterations(results), converged(results))
+=======
+    n = length(resid)
+    dof = n - length(p)
+    return LsqFitResult(n, dof, p, f(p), g(p), wt, summary(results), iterations(results), converged(results))
+>>>>>>> 1af45a49bbd10fe26df21800024e9345b93bacd4
 end
 
 function lmfit(ydata, f::Function, p0, wt; kwargs...)
