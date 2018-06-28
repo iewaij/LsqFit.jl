@@ -4,7 +4,7 @@
 Show the output of `LsqFitResult`.
 """
 function Base.show(io::IO, fit::LsqFitResult)
-    print(
+    print(io,
     """Results of Least Squares Fitting:
     * Algorithm: $(fit.algorithm)
     * Iterations: $(fit.iterations)
@@ -13,12 +13,12 @@ function Base.show(io::IO, fit::LsqFitResult)
     * Sample Size: $(fit.n)
     * Degrees of Freedom: $(fit.dof)
     * Weights: $(fit.wt)
-    * Sum of Squared Errors: $(sse(fit))
-    * Mean Squared Errors: $(mse(fit))
-    * R²: $(r2(fit))
-    * Adjusted R²: $(adjr2(fit))
+    * Sum of Squared Errors: $(round(sse(fit), 4))
+    * Mean Squared Errors: $(round(mse(fit), 4))
+    * R²: $(round(r2(fit), 4))
+    * Adjusted R²: $(round(adjr2(fit), 4))
     """)
-    println("\nVariance Inferences:")
+    println(io, "\nVariance Inferences:")
     nc = 4
     nr = length(fit.param)
     outrows = Matrix{String}(nr+1, nc)

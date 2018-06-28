@@ -2,6 +2,7 @@ module LsqFit
 
     export mse,
            sse,
+           sst,
            r2,
            adjr2,
            curve_fit,
