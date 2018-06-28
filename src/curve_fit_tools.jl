@@ -26,7 +26,7 @@ function Base.show(io::IO, fit::LsqFitResult)
 
     for i in 1:nr
         outrows[i+1, :] = ["$i", "$(round(fit.param[i], 4))", "$(round(standard_error(fit)[i], 4))",
-                           "$(round.(confidence_interval(fit)[i], 2))"]
+                           "$(round.(confidence_interval(fit)[i], 3))"]
     end
 
     colwidths = length.(outrows)
@@ -158,14 +158,13 @@ end
 Return the standard error of parameters.
 
 # Arguments
+fit::LsqFitResult: a LsqFitResult from a curve_fit()
+atol::Real: absolute tolerance for approximate comparisson to 0.0 in negativity check
+rtol::Real: relative tolerance for approximate comparisson to 0.0 in negativity check
 """
 function standard_error(fit::LsqFitResult; rtol::Real=NaN, atol::Real=0)
-    # computes standard error of estimates from
-    #   fit   : a LsqFitResult from a curve_fit()
-    #   atol  : absolute tolerance for approximate comparisson to 0.0 in negativity check
-    #   rtol  : relative tolerance for approximate comparisson to 0.0 in negativity check
     covar = estimate_covar(fit)
-    # then the standard errors are given by the sqrt of the diagonal
+    # standard errors are given by the sqrt of the diagonal
     vars = diag(covar)
     vratio = minimum(vars)/maximum(vars)
     if !isapprox(vratio, 0.0, atol=atol, rtol=isnan(rtol) ? Base.rtoldefault(vratio, 0.0, 0) : rtol) && vratio < 0.0
@@ -174,12 +173,18 @@ function standard_error(fit::LsqFitResult; rtol::Real=NaN, atol::Real=0)
     return sqrt.(abs.(vars))
 end
 
+"""
+    margin_error(fit, alpha=0.05; rtol=NaN, atol=0)
+
+Return margin of error at alpha significance level, which is the product of standard errors and quantile of the student-t distribution (critical values).
+
+# Arguments
+fit::LsqFitResult: a LsqFitResult from a curve_fit()
+alpha::Real: significance level, e.g. alpha=0.05 for 95% confidence
+atol::Real: absolute tolerance for approximate comparisson to 0.0 in negativity check
+rtol::Real: relative tolerance for approximate comparisson to 0.0 in negativity check
+"""
 function margin_error(fit::LsqFitResult, alpha=0.05; rtol::Real=NaN, atol::Real=0)
-    # computes margin of error at alpha significance level from
-    #   fit   : a LsqFitResult from a curve_fit()
-    #   alpha : significance level, e.g. alpha=0.05 for 95% confidence
-    #   atol  : absolute tolerance for approximate comparisson to 0.0 in negativity check
-    #   rtol  : relative tolerance for approximate comparisson to 0.0 in negativity check
     std_errors = standard_error(fit; rtol=rtol, atol=atol)
     dist = TDist(fit.dof)
     critical_values = quantile(dist, 1 - alpha/2)
@@ -187,12 +192,18 @@ function margin_error(fit::LsqFitResult, alpha=0.05; rtol::Real=NaN, atol::Real=
     return std_errors * critical_values
 end
 
-function confidence_interval(fit::LsqFitResult, alpha=0.05; rtol::Real=NaN, atol::Real=0)
-    # computes confidence intervals at alpha significance level from
-    #   fit   : a LsqFitResult from a curve_fit()
-    #   alpha : significance level, e.g. alpha=0.05 for 95% confidence
-    #   atol  : absolute tolerance for approximate comparisson to 0.0 in negativity check
-    #   rtol  : relative tolerance for approximate comparisson to 0.0 in negativity check
+"""
+    margin_error(fit, alpha=0.05; rtol=NaN, atol=0)
+
+Return confidence intervals at alpha significance level.
+
+# Arguments
+fit::LsqFitResult: a LsqFitResult from a curve_fit()
+alpha::Real: significance level, e.g. alpha=0.05 for 95% confidence
+atol::Real: absolute tolerance for approximate comparisson to 0.0 in negativity check
+rtol::Real: relative tolerance for approximate comparisson to 0.0 in negativity check
+"""
+function confidence_interval(fit::LsqFitResult, alpha::Real=0.05; rtol::Real=NaN, atol::Real=0)
     std_errors = standard_error(fit; rtol=rtol, atol=atol)
     margin_of_errors = margin_error(fit, alpha; rtol=rtol, atol=atol)
     confidence_intervals = collect(zip(fit.param-margin_of_errors, fit.param+margin_of_errors))
