@@ -1,4 +1,14 @@
 let
+    # sine function
+    @. model(x,p) = p[1] * sin(p[2] * x)
+    srand(66)
+    xdata = linspace(-5,5,50)
+    ydata = model(xdata, [1.0, 2.0]) + randn(50)
+    p0 = [2., 2.]
+    fit = curve_fit(model, xdata, ydata, p0)
+    @assert norm(fit.param - [1.1189, 1.94324]) < 0.01
+    @test fit.converged
+
     # fitting noisy data to an exponential model
     # TODO: Change to `.-x` when 0.5 support is dropped
     model(x, p) = @compat p[1] .* exp.(-x .* p[2])
