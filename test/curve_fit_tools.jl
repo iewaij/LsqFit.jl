@@ -20,11 +20,9 @@ let
     conf_int = margin_error(fit, 0.05)
     @assert norm(conf_int - [0.0189, 0.086]) < 0.01
 
-    r2 = r2(fit)
-    @assert norm(r2 - 0.9986) < 0.01
+    @assert norm(r2(fit)- 0.9986) < 0.01
 
-    adjr2 = adjr2(fit)
-    @assert norm(adjr2 - 0.9984) < 0.01
+    @assert norm(adjr2(fit) - 0.9984) < 0.01
 
     # sine function
     @. model(x,p) = p[1] * sin(p[2] * x)
@@ -38,10 +36,9 @@ let
     @assert norm(covar - [0.0526098 0.000652803; 0.000652803 0.00407946]) < 0.0001
 
     std_errors = standard_error(fit)
-    @assert norm(std_errors - [0.229368, 0.0638706] < 0.0001
+    @assert norm(std_errors - [0.229368, 0.0638706]) < 0.0001
 
-    sse = sse(fit)
-    @assert norm(sse - 60.29861860193) < 0.0001
+    @assert norm(sse(fit) - 60.29861860193) < 0.0001
 
     # TODO: test with weights
 end
