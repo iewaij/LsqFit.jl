@@ -1,24 +1,22 @@
 module LsqFit
 
-    export mse,
-           sse,
-           sst,
-           r2,
-           adjr2,
+    export least_squares,
            curve_fit,
+           estimate_covar,
            standard_error,
            margin_error,
-           confidence_interval,
-           estimate_covar
+           confidence_interval
 
-    using Calculus
+    using NLSolversBase
     using Distributions
     using Compat
-    using OptimBase
 
     import Base.summary
 
-    include("levenberg_marquardt.jl")
-    include("curve_fit.jl")
-    include("curve_fit_tools.jl")
+    include("types.jl")
+    include("api.jl")
+    include("lsqfit/least_squares.jl")
+    # include("lsqfit/curve_fit.jl")
+    include("solvers/levenberg_marquardt.jl")
+    # include("utilities/assess_fit.jl")
 end

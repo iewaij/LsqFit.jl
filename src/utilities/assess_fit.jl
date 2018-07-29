@@ -1,55 +1,4 @@
 """
-    Base.show(io, fit)
-
-Show the output of `LsqFitResult`.
-"""
-function Base.show(io::IO, fit::LsqFitResult)
-    print(io,
-    """Results of Least Squares Fitting:
-    * Algorithm: $(fit.algorithm)
-    * Iterations: $(fit.iterations)
-    * Converged: $(fit.converged)
-    * Estimated Parameters: $(fit.param)
-    * Sample Size: $(fit.n)
-    * Degrees of Freedom: $(fit.dof)
-    * Weights: $(fit.wt)
-    * Sum of Squared Errors: $(round(sse(fit), 4))
-    * Mean Squared Errors: $(round(mse(fit), 4))
-    * R²: $(round(r2(fit), 4))
-    * Adjusted R²: $(round(adjr2(fit), 4))
-    """)
-    println(io, "\nVariance Inferences:")
-    nc = 4
-    nr = length(fit.param)
-    outrows = Matrix{String}(nr+1, nc)
-    outrows[1, :] = ["k", "value", "std error", "95% conf int"]
-
-    for i in 1:nr
-        outrows[i+1, :] = ["$i", "$(round(fit.param[i], 4))", "$(round(standard_error(fit)[i], 4))",
-                           "$(round.(confidence_interval(fit)[i], 3))"]
-    end
-
-    colwidths = length.(outrows)
-    max_colwidths = [maximum(view(colwidths, :, i)) for i in 1:nc]
-
-    for r in 1:nr+1
-        for c in 1:nc
-            cur_cell = outrows[r, c]
-            cur_cell_len = length(cur_cell)
-
-            padding = " "^(max_colwidths[c]-cur_cell_len)
-            if c > 1
-                padding = " "*padding
-            end
-
-            print(io, padding)
-            print(io, cur_cell)
-        end
-        print(io, "\n")
-    end
-end
-
-"""
     sse(fit)
 
 Return the residual sum of squares (RSS), also known as the sum of squared residuals (SSR) or the sum of squared errors (SSE).
@@ -193,7 +142,7 @@ function margin_error(fit::LsqFitResult, alpha=0.05; rtol::Real=NaN, atol::Real=
 end
 
 """
-    margin_error(fit, alpha=0.05; rtol=NaN, atol=0)
+    confidence_interval(fit, alpha=0.05; rtol=NaN, atol=0)
 
 Return confidence intervals at alpha significance level.
 
