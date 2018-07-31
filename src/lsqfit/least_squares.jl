@@ -1,5 +1,5 @@
 function least_squares(d::D, initial_x::Tx, method::M = LevenbergMarquardt(),
-                       options::Options = Options(;default_options(method)...),
+                       options::Options = Options(),
                        state = initial_state(d, initial_x, method, options)) where {D<:AbstractObjective, Tx<:AbstractArray, M<:AbstractOptimizer}
 
     t0 = time() # Initial time stamp used to control early stopping by options.time_limit
@@ -60,15 +60,12 @@ function least_squares(d::D, initial_x::Tx, method::M = LevenbergMarquardt(),
                                            h_calls(d))
 end
 
-promote_objtype(f, x, autodiff::Symbol, inplace::Bool) = OnceDifferentiable(f, x, real(zero(eltype(x))); autodiff = autodiff)
-promote_objtype(f, J, x, autodiff::Symbol, inplace::Bool) = OnceDifferentiable(f, J, x, real(zero(eltype(x))); inplace = inplace)
-
-function least_squares(f::Function, initial_x::Tx, method::M = LevenbergMarquardt(), options::Options = Options(;default_options(method)...); inplace = true, autodiff = :finite, kwargs...) where {Tx<:AbstractArray, M<:AbstractOptimizer}
+function least_squares(f::Function, initial_x::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     d = OnceDifferentiable(f, initial_x, inplace = inplace, autodiff = autodiff, kwargs...)
     least_squares(d, initial_x, method, options)
 end
 
-function least_squares(f::Function, j::Function, initial_x::Tx, method::M = LevenbergMarquardt(), options::Options = Options(;default_options(method)...); inplace = true, autodiff = :finite, kwargs...) where {Tx<:AbstractArray, M<:AbstractOptimizer}
+function least_squares(f::Function, j::Function, initial_x::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     d = OnceDifferentiable(f, j, initial_x, inplace = inplace, kwargs...)
     least_squares(d, initial_x, method, options)
 end

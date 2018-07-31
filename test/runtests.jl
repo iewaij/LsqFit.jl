@@ -4,11 +4,13 @@
 
 using LsqFit, Base.Test, Compat
 
-my_tests = ["curve_fit.jl", "curve_fit_tools.jl", "levenberg_marquardt.jl"]
+tests = ["curve_fit.jl", "curve_fit_tools.jl", "levenberg_marquardt.jl"]
 
 println("Running tests:")
 
-for my_test in my_tests
-    println(" * $(my_test)")
-    include(my_test)
-end
+# for test in tests
+#     println(" * $(my_test)")
+#     include(test)
+# end
+
+include("tmp_test.jl")

@@ -52,6 +52,19 @@ function curve_fit(m::Function, xpts::AbstractArray, ydata::AbstractArray, initi
     return LsqFitResult(n, dof, p, ydata, f, j, wt, summary(results), iterations(results), converged(results))
 end
 
+function curve_fit(m::Function, j::Function, xpts::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(;default_options(method)...); inplace = true, autodiff = :finite, kwargs...)
+    # construct the residual function
+    r(p) = m(xpts, p) - ydata
+    d = OnceDifferentiable(r, j, initial_p, inplace = inplace, kwargs...)
+    # get least squares result
+    result = least_squares(d, initial_p, method, options)
+    p = minimizer(results)
+    f, j = value_jacobian!!(d, p)
+    n = length(resid)
+    dof = n - length(p)
+    return LsqFitResult(n, dof, p, ydata, f, j, wt, summary(results), iterations(results), converged(results))
+end
+
 """
     curve_fit(model::Function, xpts::AbstractArray, ydata::AbstractArray, sigma::Vector, p0; kwargs...)
 

@@ -6,16 +6,11 @@ struct Options{T, TCallback}
     x_tol::T
     f_tol::T
     g_tol::T
-    outer_x_tol::T
-    outer_f_tol::T
-    outer_g_tol::T
     f_calls_limit::Int
     g_calls_limit::Int
     h_calls_limit::Int
     allow_f_increases::Bool
-    allow_outer_f_increases::Bool
     iterations::Int
-    outer_iterations::Int
     store_trace::Bool
     show_trace::Bool
     extended_trace::Bool
@@ -24,42 +19,39 @@ struct Options{T, TCallback}
     time_limit::Float64
 end
 
-function Options(;
-        x_tol::Real = 1e-8,
-        f_tol::Real = 0.0,
-        g_tol::Real = 1e-12,
-        outer_x_tol::Real = 0.0,
-        outer_f_tol::Real = 0.0,
-        outer_g_tol::Real = 1e-8,
-        f_calls_limit::Int = 0,
-        g_calls_limit::Int = 0,
-        h_calls_limit::Int = 0,
-        allow_f_increases::Bool = false,
-        allow_outer_f_increases::Bool = false,
-        iterations::Int = 100,
-        outer_iterations::Int = 1000,
-        store_trace::Bool = false,
-        show_trace::Bool = false,
-        extended_trace::Bool = false,
-        show_every::Int = 1,
-        callback = nothing,
-        time_limit = NaN)
+function Options(;x_tol::Real = 1e-8,
+                  f_tol::Real = 0.0,
+                  g_tol::Real = 1e-12,
+                  f_calls_limit::Int = 0,
+                  g_calls_limit::Int = 0,
+                  h_calls_limit::Int = 0,
+                  allow_f_increases::Bool = false,
+                  iterations::Int = 100,
+                  store_trace::Bool = false,
+                  show_trace::Bool = false,
+                  extended_trace::Bool = false,
+                  show_every::Int = 1,
+                  callback = nothing,
+                  time_limit::AbstractFloat = NaN)
     show_every = show_every > 0 ? show_every : 1
-    Options(promote(x_tol, f_tol, g_tol, outer_x_tol, outer_f_tol, outer_g_tol)..., f_calls_limit, g_calls_limit, h_calls_limit,
-        allow_f_increases, allow_outer_f_increases, successive_f_tol, Int(iterations), Int(outer_iterations), store_trace, show_trace, extended_trace,
-        Int(show_every), callback, Float64(time_limit))
-end
-
-default_options(method::AbstractOptimizer) = Dict{Symbol, Any}()
-
-function print_header(options::Options)
-    if options.show_trace
-        @printf "Iter     Function value   Gradient norm \n"
-    end
+    Options(x_tol,
+            f_tol,
+            g_tol,
+            f_calls_limit,
+            g_calls_limit,
+            h_calls_limit,
+            allow_f_increases,
+            iterations,
+            store_trace,
+            show_trace,
+            extended_trace,
+            show_every,
+            callback,
+            time_limit)
 end
 
 function print_header(method::AbstractOptimizer)
-        @printf "Iter     Function value   Gradient norm \n"
+        @printf "Iter     Function value   Jacobian norm \n"
 end
 
 struct OptimizationState{Tf, T <: AbstractOptimizer}
@@ -131,8 +123,8 @@ function Base.show(io::IO, t::OptimizationState)
 end
 
 function Base.show(io::IO, tr::OptimizationTrace)
-    @printf io "Iter     Function value   Gradient norm \n"
-    @printf io "------   --------------   --------------\n"
+    @printf io "Iter     Function value   Jacobian norm \n"
+    @printf io "------   --------------   ------------- \n"
     for state in tr
         show(io, state)
     end

@@ -1,6 +1,6 @@
 immutable LevenbergMarquardt{T<:Real, V<:Vector} <: AbstractOptimizer
     min_step_quality::T
-    max_step_quality::T
+    good_step_quality::T
     initial_lambda::T
     lambda_increase::T
     lambda_decrease::T
@@ -11,61 +11,67 @@ end
 Base.summary(::LevenbergMarquardt) = "Levenberg-Marquardt"
 
 """
-    LevenbergMarquardt(; min_step_quality=1e-3,
-                         max_step_quality=1e-3,
+    LevenbergMarquardt(; min_step_quality = 1e-3,
+                         good_step_quality = 0.75,
                          initial_lambda = 10.0,
                          lambda_increase = 10.0,
                          lambda_decrease = 0.1,
-                         lower = [],
-                         upper = [])
+                         lower = zeros(0),
+                         upper = zeros(0))
 
 Implements box constraints as described in Kanzow, Yamashita, Fukushima (2004; J
 Comp & Applied Math).
 """
-function LevenbergMarquardt(; min_step_quality=1e-3,
-                     max_step_quality=1e-3,
-                     initial_lambda = 10.0,
-                     lambda_increase = 10.0,
-                     lambda_decrease = 0.1,
-                     lower = zeros(0),
-                     upper = zeros(0))
-    LevenbergMarquardt(min_step_quality, max_step_quality, initial_lambda,lambda_increase, lambda_decrease, lower, upper)
+function LevenbergMarquardt(;min_step_quality = 1e-3,
+                             good_step_quality = 0.75,
+                             initial_lambda = 10.0,
+                             lambda_increase = 10.0,
+                             lambda_decrease = 0.1,
+                             lower = zeros(0),
+                             upper = zeros(0))
+    LevenbergMarquardt(min_step_quality,
+                       good_step_quality,
+                       initial_lambda,
+                       lambda_increase,
+                       lambda_decrease,
+                       lower,
+                       upper)
 end
 
 mutable struct LevenbergMarquardtState{Tx, T, M, V, L} <: AbstractOptimizerState
     x::Tx
     previous_x::Tx
     previous_f_x::T
-    JJ::M
-    n_buffer::V
     lambda::L
+    n_matrix::M # cache for J'J
+    n_vector::V # cache for J'f_x
 end
 
 function initial_state(d, initial_x, method::LevenbergMarquardt, options)
     # check parameters
-    @assert (isempty(lower) || length(lower)==length(initial_x)) && (isempty(upper) || length(upper)==length(initial_x)) "Bounds must either be empty or of the same length as the number of parameters."
-    @assert (isempty(lower) || all(initial_x .>= lower)) && (isempty(upper) || all(initial_x .<= upper)) "Initial guess must be within bounds."
-    @assert 0 <= min_step_quality < 1 "0 <= min_step_quality < 1 must hold."
-    @assert 0 < good_step_quality <= 1 "0 < good_step_quality <= 1 must hold."
-    @assert min_step_quality < good_step_quality "min_step_quality < good_step_quality must hold."
+    @assert (isempty(method.lower) || length(method.lower)==length(initial_x)) && (isempty(method.upper) || length(method.upper)==length(initial_x)) "Bounds must either be empty or of the same length as the number of parameters."
+    @assert (isempty(method.lower) || all(initial_x .>= method.lower)) && (isempty(method.upper) || all(initial_x .<= method.upper)) "Initial guess must be within bounds."
+    @assert 0 <= method.min_step_quality < 1 "0 <= min_step_quality < 1 must hold."
+    @assert 0 < method.good_step_quality <= 1 "0 < good_step_quality <= 1 must hold."
+    @assert method.min_step_quality < method.good_step_quality "min_step_quality < good_step_quality must hold."
 
     T = eltype(initial_x)
     n = length(initial_x)
-    value_jacobian!!(d, initial_x)
+    value_gradient!!(d, initial_x)
 
     LevenbergMarquardtState(initial_x,
                             similar(initial_x),
                             T(NaN),
+                            method.initial_lambda,
                             Matrix{T}(undef, n, n),
-                            Vector{T}(undef, n),
-                            method.initial_lambda)
+                            Vector{T}(undef, n))
 end
 
 function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarquardt)
     # we want to solve:
     #    argmin 0.5*||J(x)*delta_x + r(x)||^2 + lambda*||diagm(J'*J)*delta_x||^2
     # Solving for the minimum gives:
-    #    (J'*J + lambda*diagm(DtD)) * delta_x == -J' * r(p), where DtD = sum(abs2, J, 1)
+    #    (J'* J + lambda*diagm(DtD)) * delta_x == -J' * r(p), where DtD = sum(abs2, J, 1)
     # Where we have used the equivalence: diagm(J'*J) = diagm(sum(abs2, J, 1))
     # It is additionally useful to bound the elements of DtD below to help
     # prevent "parameter evaporation".
@@ -75,6 +81,11 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     MIN_LAMBDA = 1e-16
     MIN_DIAGONAL = 1e-6
 
+    # values from objective
+    J = gradient(d)
+    f_x = value(d)
+    residual = sum(abs2, f_x)
+
     DtD = vec(sum(abs2, J, 1))
 
     for i in 1:length(DtD)
@@ -83,18 +94,14 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
         end
     end
 
-    J = jacobian(d)
-    f_x = value(d)
-    residual = sum(abs2, f_x)
-
     # delta_x = (J'*J + lambda * Diagonal(DtD) ) \ (-J'*f_x)
-    mul!(state.JJ, transpose(J), J)
+    mul!(state.n_matrix, transpose(J), J)
     @simd for i in 1:n
-        @inbounds state.JJ[i, i] += state.lambda * DtD[i]
+        @inbounds state.n_matrix[i, i] += state.lambda * DtD[i]
     end
-    mul!(state.n_buffer, transpose(J), f_x)
-    rmul!(state.n_buffer, -1)
-    delta_x = state.JJ \ state.n_buffer
+    mul!(state.n_vector, transpose(J), f_x)
+    rmul!(state.n_vector, -1)
+    delta_x = state.n_matrix \ state.n_vector
 
     # apply box constraints
     if !isempty(lower)
@@ -119,15 +126,15 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     # step quality = residual change / predicted residual change
     rho = (trial_residual - residual) / (predicted_residual - residual)
 
-    if rho > min_step_quality
+    if rho > method.min_step_quality
         state.previous_x = state.x
         state.previous_f_x = f_x
         state.x += delta_x
-        if rho > good_step_quality
+        if rho > method.good_step_quality
             # increase trust region radius
             state.lambda = max(method.lambda_decrease * state.lambda, MIN_LAMBDA)
         end
-        value_jacobian!!(d, state.x)
+        value_gradient!!(d, state.x)
     else
         # decrease trust region radius
         state.lambda = min(method.lambda_increase * state.lambda, MAX_LAMBDA)
@@ -139,7 +146,7 @@ function assess_convergence(d, options, state::LevenbergMarquardtState)
     # 1. Small gradient: norm(J^T * f_x, Inf) < g_tol
     # 2. Small step size: norm(delta_x) < x_tol * x
     f_x = value(d)
-    J = jacobian(d)
+    J = gradient(d)
     delta_x = state.x - state.previous_x
     delta_f_x = f_x - state.f_x_previous
 
