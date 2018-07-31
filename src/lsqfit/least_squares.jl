@@ -1,6 +1,7 @@
-function least_squares(d::D, initial_x::Tx, method::M = LevenbergMarquardt(),
+function least_squares(d::AbstractObjective, initial_x::AbstractArray,
+                       method::AbstractOptimizer = LevenbergMarquardt(),
                        options::Options = Options(),
-                       state = initial_state(d, initial_x, method, options)) where {D<:AbstractObjective, Tx<:AbstractArray, M<:AbstractOptimizer}
+                       state = initial_state(d, initial_x, method, options))
 
     t0 = time() # Initial time stamp used to control early stopping by options.time_limit
 
@@ -20,6 +21,10 @@ function least_squares(d::D, initial_x::Tx, method::M = LevenbergMarquardt(),
        update_state!(state, d, method)
        x_converged, f_converged, f_increased, g_converged, converged = assess_convergence(d, options, state)
 
+       if tracing
+           #TODO
+           trace!(method, options)
+           
        # Check time_limit; if none is provided it is NaN and the comparison
        # will always return false.
        stopped_by_time_limit = time()-t0 > options.time_limit

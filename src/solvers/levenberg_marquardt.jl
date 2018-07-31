@@ -38,7 +38,7 @@ function LevenbergMarquardt(;min_step_quality = 1e-3,
                        upper)
 end
 
-mutable struct LevenbergMarquardtState{Tx, T, M, V, L} <: AbstractOptimizerState
+mutable struct LevenbergMarquardtState{Tx, T, L, M, V} <: AbstractOptimizerState
     x::Tx
     previous_x::Tx
     previous_f_x::T
@@ -95,12 +95,12 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     end
 
     # delta_x = (J'*J + lambda * Diagonal(DtD) ) \ (-J'*f_x)
-    mul!(state.n_matrix, transpose(J), J)
+    At_mul_B!(state.n_matrix, J, J)
     @simd for i in 1:n
         @inbounds state.n_matrix[i, i] += state.lambda * DtD[i]
     end
-    mul!(state.n_vector, transpose(J), f_x)
-    rmul!(state.n_vector, -1)
+    At_mul_B!(state.n_vector, J, f_x)
+    scale!(state.n_vector, -1)
     delta_x = state.n_matrix \ state.n_vector
 
     # apply box constraints
