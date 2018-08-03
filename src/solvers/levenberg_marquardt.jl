@@ -95,7 +95,7 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     end
 
     # delta_x = (J'*J + lambda * Diagonal(DtD) ) \ (-J'*f_x)
-    At_mul_B!(state.n_matrix, J, J)
+    A_mul_Bt!(state.n_matrix, J, J)
     @simd for i in 1:n
         @inbounds state.n_matrix[i, i] += state.lambda * DtD[i]
     end

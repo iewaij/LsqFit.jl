@@ -17,25 +17,26 @@ function least_squares(d::AbstractObjective, initial_x::AbstractArray,
     iteration = 0
 
     while !converged && !stopped && iteration < options.iterations
-       iteration += 1
-       update_state!(state, d, method)
-       x_converged, f_converged, f_increased, g_converged, converged = assess_convergence(d, options, state)
+        iteration += 1
+        update_state!(state, d, method)
+        x_converged, f_converged, f_increased, g_converged, converged = assess_convergence(d, options, state)
+    end
 
-       if tracing
-           #TODO
-           trace!(method, options)
-           
-       # Check time_limit; if none is provided it is NaN and the comparison
-       # will always return false.
-       stopped_by_time_limit = time()-t0 > options.time_limit
-       f_limit_reached = options.f_calls_limit > 0 && f_calls(d) >= options.f_calls_limit ? true : false
-       g_limit_reached = options.g_calls_limit > 0 && g_calls(d) >= options.g_calls_limit ? true : false
-       h_limit_reached = options.h_calls_limit > 0 && h_calls(d) >= options.h_calls_limit ? true : false
+    if tracing
+        #TODO
+        trace!(method, options)
+    end
 
-       if (f_increased && !options.allow_f_increases) || stopped_by_callback ||
-           stopped_by_time_limit || f_limit_reached || g_limit_reached || h_limit_reached
-           stopped = true
-       end
+    # Check time_limit; if none is provided it is NaN and the comparison
+    # will always return false.
+    stopped_by_time_limit = time()-t0 > options.time_limit
+    f_limit_reached = options.f_calls_limit > 0 && f_calls(d) >= options.f_calls_limit ? true : false
+    g_limit_reached = options.g_calls_limit > 0 && g_calls(d) >= options.g_calls_limit ? true : false
+    h_limit_reached = options.h_calls_limit > 0 && h_calls(d) >= options.h_calls_limit ? true : false
+
+    if (f_increased && !options.allow_f_increases) || stopped_by_callback ||
+        stopped_by_time_limit || f_limit_reached || g_limit_reached || h_limit_reached
+        stopped = true
     end
 
     # we can just check minimum, as we've earlier enforced same types/eltypes
