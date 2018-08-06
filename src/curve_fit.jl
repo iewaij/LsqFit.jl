@@ -18,7 +18,7 @@ function lmfit(ydata, f::Function, g::Function, p0, wt; kwargs...)
     resid = f(p)
     n = length(resid)
     dof = n - length(p)
-    return LsqFitResult(n, dof, p, ydata, f(p), g(p), wt, summary(results), iterations(results), converged(results))
+    return LsqFitResult(n, dof, p, ydata, f(p), g(p), wt, summary(results), OptimBase.iterations(results), converged(results))
 end
 
 function lmfit(ydata, f::Function, p0, wt; kwargs...)
