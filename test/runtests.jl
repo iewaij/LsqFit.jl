@@ -2,10 +2,9 @@
 # Correctness Tests
 #
 
-using LsqFit, Test, LinearAlgebra, Random
-using OptimBase, Calculus
+using LsqFit, Base.Test, Compat
 
-my_tests = ["curve_fit.jl", "curve_fit_tools.jl", "levenberg_marquardt.jl"]
+my_tests = [ "curve_fit.jl", "levenberg_marquardt.jl"]
 
 println("Running tests:")
 

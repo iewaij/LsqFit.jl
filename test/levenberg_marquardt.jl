@@ -51,9 +51,9 @@
         srand(12345)
 
         # TODO: Change to `.-x` when 0.5 support is dropped
-        model(x, p) = p[1] .* exp.(-x .* p[2])
+        model(x, p) = @compat p[1] .* exp.(-x .* p[2])
 
-        xdata = range(0, stop=10, length=20)
+        xdata = linspace(0,10,20)
         ydata = model(xdata, [1.0 2.0]) + 0.01*randn(length(xdata))
 
         f_lsq = p ->  model(xdata, p) - ydata
@@ -67,7 +67,7 @@
         srand(12345)
 
         # TODO: Change to `.-x` when 0.5 support is dropped
-        model(x, p) = p[1] .* exp.(-x ./ p[2]) .+ p[3]
+        model(x, p) = @compat p[1] .* exp.(-x ./ p[2]) .+ p[3]
 
         xdata = 1:100
         ydata = model(xdata, [10.0, 10.0, 10.0]) + 0.1*randn(length(xdata))
