@@ -11,11 +11,11 @@ let
 
     # fitting noisy data to an exponential model
     # TODO: Change to `.-x` when 0.5 support is dropped
-    model(x, p) = @compat p[1] .* exp.(-x .* p[2])
+    model(x, p) = p[1] .* exp.(-x .* p[2])
 
     # some example data
     srand(12345)
-    xdata = linspace(0,10,20)
+    xdata = range(0, stop=10, length=20)
     ydata = model(xdata, [1.0, 2.0]) + 0.01*randn(length(xdata))
     p0 = [0.5, 0.5]
 
@@ -26,8 +26,8 @@ let
     # if your model is differentiable, it can be faster and/or more accurate
     # to supply your own jacobian instead of using the finite difference
     function jacobian_model(x,p)
-        J = Array{Float64}(length(x),length(p))
-        J[:,1] = @compat exp.(-x.*p[2])     #dmodel/dp[1]
+        J = Array{Float64}(undef, length(x), length(p))
+        J[:,1] = exp.(-x.*p[2])     #dmodel/dp[1]
         J[:,2] = -x.*p[1].*J[:,1]           #dmodel/dp[2]
         J
     end
@@ -37,7 +37,7 @@ let
 
     # some example data
     yvars = 1e-6*rand(length(xdata))
-    ydata = model(xdata, [1.0, 2.0]) + @compat sqrt.(yvars) .* randn(length(xdata))
+    ydata = model(xdata, [1.0, 2.0]) + sqrt.(yvars) .* randn(length(xdata))
 
     fit = curve_fit(model, xdata, ydata, 1 ./ yvars, [0.5, 0.5])
     println("norm(fit.param - [1.0, 2.0]) < 0.05 ? ", norm(fit.param - [1.0, 2.0]))
