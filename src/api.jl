@@ -24,14 +24,11 @@ f_calls(d) = first(d.f_calls)
 
 g_calls(r::OptimizationResults) = error("g_calls is not implemented for $(summary(r)).")
 g_calls(r::MultivariateOptimizationResults) = r.g_calls
-g_calls(d::NonDifferentiable) = 0
 g_calls(d) = first(d.df_calls)
 
 h_calls(r::OptimizationResults) = error("h_calls is not implemented for $(summary(r)).")
 h_calls(r::MultivariateOptimizationResults) = r.h_calls
-h_calls(d::Union{NonDifferentiable, OnceDifferentiable}) = 0
 h_calls(d) = first(d.h_calls)
-h_calls(d::TwiceDifferentiableHV) = first(d.hv_calls)
 
 converged(r::MultivariateOptimizationResults) = r.x_converged || r.f_converged || r.g_converged
 x_converged(r::OptimizationResults) = error("x_converged is not implemented for $(summary(r)).")

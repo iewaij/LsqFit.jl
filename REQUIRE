@@ -1,5 +1,4 @@
-julia 0.5
-Calculus
+julia 0.7
+Compat
 Distributions
-Compat 0.32.0
-OptimBase
+NLSolversBase

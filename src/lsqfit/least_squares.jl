@@ -45,33 +45,35 @@ function least_squares(d::AbstractObjective, initial_x::AbstractArray,
     f_incr_pick = f_increased && !options.allow_f_increases
 
     return MultivariateOptimizationResults(method,
-                                           initial_x,
-                                           pick_best_x(f_incr_pick, state),
-                                           pick_best_f(f_incr_pick, state, d),
-                                           iteration,
-                                           iteration == options.iterations,
-                                           x_converged,
-                                           T(options.x_tol),
-                                           x_abschange(state),
-                                           f_converged,
-                                           T(options.f_tol),
-                                           f_abschange(d, state),
-                                           g_converged,
-                                           T(options.g_tol),
-                                           g_residual(d),
-                                           f_increased,
-                                           tr,
-                                           f_calls(d),
-                                           g_calls(d),
-                                           h_calls(d))
+                                              initial_x,
+                                              pick_best_x(f_incr_pick, state),
+                                              pick_best_f(f_incr_pick, state, d),
+                                              iteration,
+                                              iteration == options.iterations,
+                                              x_converged,
+                                              T(options.x_tol),
+                                              0, #x_abschange(state),
+                                              f_converged,
+                                              T(options.f_tol),
+                                              0, #f_abschange(d, state),
+                                              g_converged,
+                                              T(options.g_tol),
+                                              0, #g_residual(d),
+                                              f_increased,
+                                              0, #tr,
+                                              f_calls(d),
+                                              g_calls(d),
+                                              0)
 end
 
 function least_squares(f::Function, initial_x::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
-    d = OnceDifferentiable(f, initial_x, inplace = inplace, autodiff = autodiff, kwargs...)
+    F = zeros(initial_x)
+    d = OnceDifferentiable(f, initial_x, F, inplace = inplace, autodiff = autodiff, kwargs...)
     least_squares(d, initial_x, method, options)
 end
 
 function least_squares(f::Function, j::Function, initial_x::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
-    d = OnceDifferentiable(f, j, initial_x, inplace = inplace, kwargs...)
+    F = f(initial_x)
+    d = OnceDifferentiable(f, j, F, initial_x, inplace = inplace, kwargs...)
     least_squares(d, initial_x, method, options)
 end

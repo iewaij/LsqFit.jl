@@ -16,7 +16,7 @@ module LsqFit
     include("types.jl")
     include("api.jl")
     include("lsqfit/least_squares.jl")
-    # include("lsqfit/curve_fit.jl")
+    include("lsqfit/curve_fit.jl")
     include("solvers/levenberg_marquardt.jl")
-    # include("utilities/assess_fit.jl")
+    include("utilities/assess_fit.jl")
 end

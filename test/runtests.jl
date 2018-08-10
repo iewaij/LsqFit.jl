@@ -1,16 +1,11 @@
-#
-# Correctness Tests
-#
+using LsqFit, Test, LinearAlgebra, Random
+using OptimBase, Calculus
 
-using LsqFit, Base.Test, Compat
-
-tests = ["curve_fit.jl", "curve_fit_tools.jl", "levenberg_marquardt.jl"]
+my_tests = ["tem_test.jl"]
 
 println("Running tests:")
 
-# for test in tests
-#     println(" * $(my_test)")
-#     include(test)
-# end
-
-include("tmp_test.jl")
+for my_test in my_tests
+    println(" * $(my_test)")
+    include(my_test)
+end

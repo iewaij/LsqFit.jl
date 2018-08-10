@@ -63,7 +63,7 @@ end
 
 const OptimizationTrace{Tf, T} = Vector{OptimizationState{Tf, T}}
 
-immutable MultivariateOptimizationResults{O, T, Tx, Tc, Tf, M} <: OptimizationResults
+struct MultivariateOptimizationResults{O, T, Tx, Tc, Tf, M} <: OptimizationResults
     method::O
     initial_x::Tx
     minimizer::Tx
@@ -86,7 +86,7 @@ immutable MultivariateOptimizationResults{O, T, Tx, Tc, Tf, M} <: OptimizationRe
     h_calls::Int
 end
 
-immutable LsqFitResult{T,N}
+struct LsqFitResult{T,N}
     n::Int
     dof::Int
     param::Vector{T}

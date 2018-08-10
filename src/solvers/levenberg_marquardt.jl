@@ -1,4 +1,4 @@
-immutable LevenbergMarquardt{T<:Real, V<:Vector} <: AbstractOptimizer
+struct LevenbergMarquardt{T<:Real, V<:Vector} <: AbstractOptimizer
     min_step_quality::T
     good_step_quality::T
     initial_lambda::T
@@ -43,8 +43,8 @@ mutable struct LevenbergMarquardtState{Tx, T, L, M, V} <: AbstractOptimizerState
     previous_x::Tx
     previous_f_x::T
     lambda::L
-    n_matrix::M # cache for J'J
     n_vector::V # cache for J'f_x
+    n_matrix::M # cache for J'J
 end
 
 function initial_state(d, initial_x, method::LevenbergMarquardt, options)
@@ -57,14 +57,15 @@ function initial_state(d, initial_x, method::LevenbergMarquardt, options)
 
     T = eltype(initial_x)
     n = length(initial_x)
-    value_gradient!!(d, initial_x)
+    value_jacobian!!(d, initial_x)
+    initial_lambda = method.initial_lambda
 
     LevenbergMarquardtState(initial_x,
                             similar(initial_x),
                             T(NaN),
-                            method.initial_lambda,
-                            Matrix{T}(undef, n, n),
-                            Vector{T}(undef, n))
+                            initial_lambda,
+                            Vector{T}(undef, n),
+                            Matrix{T}(undef, n, n))
 end
 
 function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarquardt)
@@ -82,9 +83,10 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     MIN_DIAGONAL = 1e-6
 
     # values from objective
-    J = gradient(d)
+    J = jacobian(d)
     f_x = value(d)
     residual = sum(abs2, f_x)
+    n = length(state.x)
 
     DtD = vec(sum(abs2, J, 1))
 
@@ -95,7 +97,7 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     end
 
     # delta_x = (J'*J + lambda * Diagonal(DtD) ) \ (-J'*f_x)
-    A_mul_Bt!(state.n_matrix, J, J)
+    At_mul_B!(state.n_matrix, J, J)
     @simd for i in 1:n
         @inbounds state.n_matrix[i, i] += state.lambda * DtD[i]
     end
@@ -134,7 +136,7 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
             # increase trust region radius
             state.lambda = max(method.lambda_decrease * state.lambda, MIN_LAMBDA)
         end
-        value_gradient!!(d, state.x)
+        value_jacobian!!(d, state.x)
     else
         # decrease trust region radius
         state.lambda = min(method.lambda_increase * state.lambda, MAX_LAMBDA)
@@ -143,10 +145,10 @@ end
 
 function assess_convergence(d, options, state::LevenbergMarquardtState)
     # check convergence criteria:
-    # 1. Small gradient: norm(J^T * f_x, Inf) < g_tol
+    # 1. Small jacobian: norm(J^T * f_x, Inf) < g_tol
     # 2. Small step size: norm(delta_x) < x_tol * x
     f_x = value(d)
-    J = gradient(d)
+    J = jacobian(d)
     delta_x = state.x - state.previous_x
     delta_f_x = f_x - state.f_x_previous
 
@@ -166,7 +168,7 @@ function assess_convergence(d, options, state::LevenbergMarquardtState)
         g_converged = true
     end
 
-    converged = x_converged || g_converged
+    converged = x_converged | g_converged
 
     x_converged, f_converged, f_increased, g_converged, converged
 end

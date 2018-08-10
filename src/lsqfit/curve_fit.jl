@@ -39,7 +39,7 @@ julia> fit = curve_fit(model, tdata, ydata, p0)
 """
 function curve_fit end
 
-function curve_fit(d::AbstractObjective, xdata::AbstractArray, ydata::AbstractArray, weight::AbstractArray = nothing, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options())
+function curve_fit(d::AbstractObjective, xdata::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, weight::AbstractArray = nothing, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options())
     result = least_squares(d, initial_p, method, options)
     p = minimizer(results)
     f, j = value_gradient!!(d, p)
@@ -48,15 +48,16 @@ function curve_fit(d::AbstractObjective, xdata::AbstractArray, ydata::AbstractAr
     return LsqFitResult(n, dof, p, ydata, f, j, weight, summary(results), iterations(results), converged(results))
 end
 
-function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the residual function
     r(p) = m(xdata, p) - ydata
-    d = OnceDifferentiable(r, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
+    F = zeros(xdata)
+    d = OnceDifferentiable(r, initial_p, F, inplace = inplace, autodiff = autodiff, kwargs...)
     # fit the data
     curve_fit(d, xdata, ydata, initial_p, method, options; inplace = inplace, autodiff = autodiff, kwargs...)
 end
 
-function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the residual function using pre-defined Jacobian function
     r(p) = m(xdata, p) - ydata
     d = OnceDifferentiable(r, j, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
@@ -65,37 +66,37 @@ function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::Abstra
 end
 
 """
-    curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+    curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
 
 use `sigma` to construct a weighted cost function to perform Weighted Least Squares, where `sigma` is a vector of the standard deviations of errors, i.e. ϵ_i ~ N(0, σ_i^2), which could be estimated as `abs(fit.resid)`.
 """
-function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the weighted residual function
     sqrt_wt = 1 ./ sigma
     wt = sqrt_wt.^2
     r(p) = sqrt_wt * (m(xdata, p) - ydata)
     d = OnceDifferentiable(r, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
     # fit the data
-    curve_fit(d, xdata, ydata, wt, initial_p, method, options)
+    curve_fit(d, xdata, ydata, initial_p, wt, method, options)
 end
 
-function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Vector, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the weighted residual function
     sqrt_wt = 1 ./ sigma
     wt = sqrt_wt.^2
     r(p) = sqrt_wt * (m(xdata, p) - ydata)
     d = OnceDifferentiable(r, j, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
     # fit the data
-    curve_fit(d, xdata, ydata, wt, initial_p, method, options)
+    curve_fit(d, xdata, ydata, initial_p, wt, method, options)
 end
 
 
 """
-    curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+    curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
 
 use `sigma` to construct a transformed cost function to perform General Least Squares, where `sigma` is a matrix of the covariance matrix of error, i.e. ϵ ~ N(0, Σ).
 """
-function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the weighted residual function
     wt = inv(sigma)
     # Cholesky is effectively a sqrt of a matrix, which is what we want
@@ -105,10 +106,10 @@ function curve_fit(m::Function, xdata::AbstractArray, ydata::AbstractArray, sigm
     r(p) = u * (m(xdata, p) - ydata)
     d = OnceDifferentiable(r, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
     # fit the data
-    curve_fit(d, xdata, ydata, wt, initial_p, method, options)
+    curve_fit(d, xdata, ydata, initial_p, wt, method, options)
 end
 
-function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::M = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
+function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::AbstractArray, sigma::Matrix, initial_p::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
     # construct the weighted residual function
     wt = inv(sigma)
     # Cholesky is effectively a sqrt of a matrix, which is what we want
@@ -118,5 +119,5 @@ function curve_fit(m::Function, j::Function, xdata::AbstractArray, ydata::Abstra
     r(p) = u * (m(xdata, p) - ydata)
     d = OnceDifferentiable(r, j, initial_p, inplace = inplace, autodiff = autodiff, kwargs...)
     # fit the data
-    curve_fit(d, xdata, ydata, wt, initial_p, method, options)
+    curve_fit(d, xdata, ydata, initial_p, wt, method, options)
 end
