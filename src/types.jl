@@ -124,7 +124,7 @@ end
 
 function Base.show(io::IO, tr::OptimizationTrace)
     @printf io "Iter     Function value   Jacobian norm \n"
-    @printf io "------   --------------   ------------- \n"
+    @printf io "----     --------------   ------------- \n"
     for state in tr
         show(io, state)
     end

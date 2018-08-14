@@ -9,7 +9,8 @@ module LsqFit
 
     using NLSolversBase
     using Distributions
-    using Compat
+    using Printf
+    using LinearAlgebra
 
     import Base.summary
 

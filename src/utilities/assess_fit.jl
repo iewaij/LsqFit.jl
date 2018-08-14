@@ -4,13 +4,13 @@
 Return the residual sum of squares (RSS), also known as the sum of squared residuals (SSR) or the sum of squared errors (SSE).
 
 ```math
-SSE = \sum_{i=1}^{n} [Y_i - m(\mathbf{x_i}, \boldsymbol{\gamma}^*)]^2
+SSE = \\sum_{i=1}^{n} [Y_i - m(\\mathbf{x_i}, \\boldsymbol{\\gamma}^*)]^2
 ```
 
 for the transformed version:
 
 ```math
-SSE = r(\mathbf{X}, \boldsymbol{\gamma}^*)'Wr(\mathbf{X}, \boldsymbol{\gamma}^*)
+SSE = r(\\mathbf{X}, \\boldsymbol{\\gamma}^*)'Wr(\\mathbf{X}, \\boldsymbol{\\gamma}^*)
 ```
 """
 function sse(fit::LsqFitResult)
@@ -23,7 +23,7 @@ end
 Return the total sum of squares (SST).
 
 ```math
-SST = \sum_{i=1}^{n} [Y_i - \bar{Y_i}]^2
+SST = \\sum_{i=1}^{n} [Y_i - \\bar{Y_i}]^2
 ```
 """
 function sst(fit::LsqFitResult)
@@ -36,7 +36,7 @@ end
 Return the explained variance, also known as R².
 
 ```math
-R^2 = \frac{\mathbf{Var}[m(\mathbf{X}, \boldsymbol{\gamma}^*)]}{\mathbf{Var}(Y)} = 1 - \frac{RSS}{TSS}
+R^2 = \\frac{\\mathbf{Var}[m(\\mathbf{X}, \\boldsymbol{\\gamma}^*)]}{\\mathbf{Var}(Y)} = 1 - \\frac{RSS}{TSS}
 ```
 """
 function r2(fit::LsqFitResult)
@@ -49,7 +49,7 @@ end
 Return the adjusted R².
 
 ```math
-R_{adj}^2 = 1 - (1-R^2)\frac{n-1}{n-p-1}
+R_{adj}^2 = 1 - (1-R^2)\\frac{n-1}{n-p-1}
 ```
 """
 function adjr2(fit::LsqFitResult)
@@ -62,7 +62,7 @@ end
 Return the unbiased estimate of error term variance σ² assuming ϵ ~ N(0, σ²I), also known as MSE.
 
 ```math
-MSE = \widehat{\sigma^2} = \frac{RSS}{n-p}
+MSE = \\widehat{\\sigma^2} = \\frac{RSS}{n-p}
 ```
 """
 function mse(fit::LsqFitResult)

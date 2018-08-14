@@ -43,8 +43,8 @@ mutable struct LevenbergMarquardtState{Tx, T, L, M, V} <: AbstractOptimizerState
     previous_x::Tx
     previous_f_x::T
     lambda::L
-    n_vector::V # cache for J'f_x
-    n_matrix::M # cache for J'J
+    k_vector::V # cache for J'f_x
+    k_matrix::M # cache for J'J
 end
 
 function initial_state(d, initial_x, method::LevenbergMarquardt, options)
@@ -56,7 +56,7 @@ function initial_state(d, initial_x, method::LevenbergMarquardt, options)
     @assert method.min_step_quality < method.good_step_quality "min_step_quality < good_step_quality must hold."
 
     T = eltype(initial_x)
-    n = length(initial_x)
+    k = length(initial_x)
     value_jacobian!!(d, initial_x)
     initial_lambda = method.initial_lambda
 
@@ -64,8 +64,8 @@ function initial_state(d, initial_x, method::LevenbergMarquardt, options)
                             similar(initial_x),
                             T(NaN),
                             initial_lambda,
-                            Vector{T}(undef, n),
-                            Matrix{T}(undef, n, n))
+                            Vector{T}(undef, k),
+                            Matrix{T}(undef, k, k))
 end
 
 function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarquardt)
@@ -85,10 +85,10 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     # values from objective
     J = jacobian(d)
     f_x = value(d)
-    residual = sum(abs2, f_x)
-    n = length(state.x)
+    residual_sum = sum(abs2, f_x)
+    k = length(state.k_vector)
 
-    DtD = vec(sum(abs2, J, 1))
+    DtD = vec(sum(abs2, J, dims=1))
 
     for i in 1:length(DtD)
         if DtD[i] <= MIN_DIAGONAL
@@ -97,36 +97,37 @@ function update_state!(state::LevenbergMarquardtState, d, method::LevenbergMarqu
     end
 
     # delta_x = (J'*J + lambda * Diagonal(DtD) ) \ (-J'*f_x)
-    At_mul_B!(state.n_matrix, J, J)
-    @simd for i in 1:n
-        @inbounds state.n_matrix[i, i] += state.lambda * DtD[i]
+    mul!(state.k_matrix, transpose(J), J)
+    @simd for i in 1:k
+        @inbounds state.k_matrix[i, i] += state.lambda * DtD[i]
     end
-    At_mul_B!(state.n_vector, J, f_x)
-    scale!(state.n_vector, -1)
-    delta_x = state.n_matrix \ state.n_vector
+    mul!(state.k_vector, transpose(J), f_x)
+    rmul!(state.k_vector, -1)
+    delta_x = state.k_matrix \ state.k_vector
+    x = state.x
 
     # apply box constraints
-    if !isempty(lower)
-        @simd for i in 1:n
-           @inbounds delta_x[i] = max(x[i] + delta_x[i], lower[i]) - x[i]
+    if !isempty(method.lower)
+        @simd for i in 1:k
+           @inbounds delta_x[i] = max(x[i] + delta_x[i], method.lower[i]) - x[i]
         end
     end
 
-    if !isempty(upper)
-        @simd for i in 1:n
-           @inbounds delta_x[i] = min(x[i] + delta_x[i], upper[i]) - x[i]
+    if !isempty(method.upper)
+        @simd for i in 1:k
+           @inbounds delta_x[i] = min(x[i] + delta_x[i], method.upper[i]) - x[i]
         end
     end
 
     # if the linear assumption is valid, our new residual should be:
-    predicted_residual = sum(abs2, J * delta_x + f_x)
+    predicted_residual_sum = sum(abs2, J * delta_x + f_x)
 
     # try the step and compute its quality
     trial_f = value(d, x + delta_x)
-    trial_residual = sum(abs2, trial_f)
+    trial_residual_sum = sum(abs2, trial_f)
 
     # step quality = residual change / predicted residual change
-    rho = (trial_residual - residual) / (predicted_residual - residual)
+    rho = (trial_residual_sum - residual_sum) / (predicted_residual_sum - residual_sum)
 
     if rho > method.min_step_quality
         state.previous_x = state.x
@@ -150,15 +151,15 @@ function assess_convergence(d, options, state::LevenbergMarquardtState)
     f_x = value(d)
     J = jacobian(d)
     delta_x = state.x - state.previous_x
-    delta_f_x = f_x - state.f_x_previous
+    delta_f_x = f_x - state.previous_f_x
 
     if norm(delta_x) < options.x_tol * (options.x_tol + norm(state.x))
         x_converged = true
     end
 
-    if abs(delta_f_x) <=  options.f_tol * abs(f_x)
-        f_converged = true
-    end
+    # if abs.(delta_f_x) .<=  options.f_tol * abs.(f_x)
+    #     f_converged = true
+    # end
 
     if delta_f_x > 0
         f_increased = true

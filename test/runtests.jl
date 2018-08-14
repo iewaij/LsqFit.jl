@@ -1,11 +1,10 @@
-using LsqFit, Test, LinearAlgebra, Random
-using OptimBase, Calculus
+using LsqFit, Test, LinearAlgebra, Random, Compat
 
-my_tests = ["tem_test.jl"]
+tests = ["tmp_test.jl"]
 
 println("Running tests:")
 
-for my_test in my_tests
-    println(" * $(my_test)")
-    include(my_test)
+for test in tests
+    println(" * $(test)")
+    include(test)
 end

@@ -1,17 +1,13 @@
-f(x, p) = p[1]*exp.(-x.*p[2])
-initial_p = [0.7, 0.7]
-xdata = range(0, stop=10, length=20)
-ydata = f(xdata, [1.0, 2.0]) + 0.01 * randn(length(xdata))
+using NLSolversBase
+using LsqFit
 
+p_initial = [0.0, 0.0]
+xdata = range(2, stop=12, length=10)
+ydata = 12.5 * exp.(-xdata * 0.2) + 0.1 * randn(length(xdata))
 function r!(F, p)
-    F = f(xdata, p) - ydata
+    F[:] = p[1]*exp.(-xdata.*p[2]) - ydata
 end
-
-r(p) = f(xdata, p) - ydata
-
-F = similar(ydata)
-d = OnceDifferentiable(r!, [1.9, 9.0], F)
-
-least_squares(r!, initial_p)
-
+F = zeros(10)
+od = OnceDifferentiable(r!, [2321., 42.], F)
+least_squares(od, p_initial)
 # curve_fit(f, xdata, ydata, initial_x)

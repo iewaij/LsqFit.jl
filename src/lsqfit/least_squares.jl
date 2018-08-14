@@ -5,12 +5,12 @@ function least_squares(d::AbstractObjective, initial_x::AbstractArray,
 
     t0 = time() # Initial time stamp used to control early stopping by options.time_limit
 
-    tr = OptimizationTrace{typeof(value(d)), typeof(method)}()
+    # tr = OptimizationTrace{typeof(value(d)), typeof(method)}()
     tracing = options.store_trace || options.show_trace || options.extended_trace || options.callback != nothing
     stopped, stopped_by_callback, stopped_by_time_limit = false, false, false
     f_limit_reached, g_limit_reached, h_limit_reached = false, false, false
     x_converged, f_converged, f_increased = false, false, false
-    g_converged = vecnorm(gradient!(d, initial_x), Inf) < options.g_tol
+    g_converged = norm(jacobian(d, initial_x), Inf) < options.g_tol
     converged = g_converged
 
     # prepare iteration counter (used to make "initial state" trace entry)
@@ -20,11 +20,6 @@ function least_squares(d::AbstractObjective, initial_x::AbstractArray,
         iteration += 1
         update_state!(state, d, method)
         x_converged, f_converged, f_increased, g_converged, converged = assess_convergence(d, options, state)
-    end
-
-    if tracing
-        #TODO
-        trace!(method, options)
     end
 
     # Check time_limit; if none is provided it is NaN and the comparison
@@ -39,31 +34,36 @@ function least_squares(d::AbstractObjective, initial_x::AbstractArray,
         stopped = true
     end
 
+    if tracing
+        #TODO
+        trace!(method, options)
+    end
+
     # we can just check minimum, as we've earlier enforced same types/eltypes
     # in variables besides the option settings
     T = typeof(options.f_tol)
     f_incr_pick = f_increased && !options.allow_f_increases
 
     return MultivariateOptimizationResults(method,
-                                              initial_x,
-                                              pick_best_x(f_incr_pick, state),
-                                              pick_best_f(f_incr_pick, state, d),
-                                              iteration,
-                                              iteration == options.iterations,
-                                              x_converged,
-                                              T(options.x_tol),
-                                              0, #x_abschange(state),
-                                              f_converged,
-                                              T(options.f_tol),
-                                              0, #f_abschange(d, state),
-                                              g_converged,
-                                              T(options.g_tol),
-                                              0, #g_residual(d),
-                                              f_increased,
-                                              0, #tr,
-                                              f_calls(d),
-                                              g_calls(d),
-                                              0)
+                                           initial_x,
+                                           pick_best_x(f_incr_pick, state),
+                                           pick_best_f(f_incr_pick, state, d),
+                                           iteration,
+                                           iteration == options.iterations,
+                                           x_converged,
+                                           T(options.x_tol),
+                                           0, #x_abschange(state),
+                                           f_converged,
+                                           T(options.f_tol),
+                                           0, #f_abschange(d, state),
+                                           g_converged,
+                                           T(options.g_tol),
+                                           0, #g_residual(d),
+                                           f_increased,
+                                           0, #tr,
+                                           f_calls(d),
+                                           g_calls(d),
+                                           0)
 end
 
 function least_squares(f::Function, initial_x::AbstractArray, method::AbstractOptimizer = LevenbergMarquardt(), options::Options = Options(); inplace = true, autodiff = :finite, kwargs...)
